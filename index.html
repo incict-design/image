@@ -23,10 +23,10 @@ header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .card img { width: 100%; height: 100px; object-fit: cover; border-radius: 6px; transition: transform 0.3s; }
 .card img:hover { transform: scale(1.05); }
 .meta { font-size: 12px; color: #555; margin-top: 4px; white-space: pre-line; text-align: center; }
-#status { font-size: 13px; color: #333; }
 button { cursor: pointer; padding: 6px 10px; border-radius: 6px; border: 1px solid #bbb; background: #f7f7f7; }
 .upload-row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
-.upload-row input, .upload-row button { height: 32px; }
+.upload-row button { height: 32px; }
+#status { font-size: 13px; color: #333; margin-left:8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 #overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000;
@@ -43,14 +43,16 @@ button { cursor: pointer; padding: 6px 10px; border-radius: 6px; border: 1px sol
 
 <header>
   <h1>画廊SHION</h1>
-  <div id="status" style="margin-left:auto"></div>
+  <div style="margin-left:auto;"></div>
 </header>
 
 <section>
   <div id="gallery"></div>
   <div class="upload-row">
-    <input id="fileInput" type="file" accept="image/*">
+    <input id="fileInput" type="file" accept="image/*" style="display:none;">
+    <button id="selectBtn">ファイルを選択</button>
     <button id="uploadBtn">アップロード</button>
+    <span id="status"></span>
   </div>
 </section>
 
@@ -103,9 +105,12 @@ const authStatus = document.getElementById("authStatus");
 const gallery = document.getElementById("gallery");
 const status = document.getElementById("status");
 const fileInput = document.getElementById("fileInput");
+const selectBtn = document.getElementById("selectBtn");
 const uploadBtn = document.getElementById("uploadBtn");
 const overlay = document.getElementById("overlay");
 const overlayImg = document.getElementById("overlayImg");
+
+let selectedFile = null;
 
 // 認証状態変更
 auth.onAuthStateChanged(user => {
@@ -139,6 +144,16 @@ loginBtn.addEventListener("click", async () => {
 // ログアウト
 logoutBtn.addEventListener("click", () => auth.signOut());
 
+// ファイル選択ボタン
+selectBtn.addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0] || null;
+  status.textContent = selectedFile ? selectedFile.name : '';
+});
+
 // アップロード
 uploadBtn.addEventListener("click", async () => {
   const user = auth.currentUser;
@@ -146,14 +161,14 @@ uploadBtn.addEventListener("click", async () => {
     status.textContent = "ログインが必要です";
     return;
   }
-  const file = fileInput.files[0];
-  if (!file) { status.textContent = "画像を選択してください"; return; }
+
+  if (!selectedFile) return; // 未選択時は何もしない
 
   uploadBtn.disabled = true;
   status.textContent = "アップロード中...";
   try {
     const ref = storage.ref(`test-images/${user.uid}`);
-    await ref.put(file);
+    await ref.put(selectedFile);
     const url = await ref.getDownloadURL();
     await db.collection("test-images").doc(user.uid).set({
       username: user.displayName || user.email,
@@ -161,7 +176,8 @@ uploadBtn.addEventListener("click", async () => {
       updatedAt: new Date()
     });
     status.textContent = "";
-    fileInput.value = "";
+    selectedFile = null;
+    fileInput.value = ""; // inputをリセット
   } catch (e) {
     status.textContent = "アップロード失敗";
   } finally {
